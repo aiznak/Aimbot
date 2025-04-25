@@ -181,6 +181,33 @@ local function getClosestPlayer()
 	return closest
 end
 
+-- === Draggable UI Logic ===
+local dragging, dragInput, dragStart, startPos
+
+-- Function to handle dragging
+local function onDragInputBegan(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = gearButton.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end
+
+local function onDragInputChanged(input)
+	if dragging then
+		local delta = input.Position - dragStart
+		gearButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end
+
+gearButton.InputBegan:Connect(onDragInputBegan)
+gearButton.InputChanged:Connect(onDragInputChanged)
+
 -- === Main Loop ===
 RunService.RenderStepped:Connect(function()
 	if aiming then
