@@ -1,20 +1,17 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-
+local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
+local camera = Workspace.CurrentCamera
 
 -- Settings
 local aiming = false
-local aimPart = "Head" -- or "HumanoidRootPart"
 local teamCheck = false
 local wallCheck = false
+local aimPart = "Head" -- Head or Torso
 local espEnabled = false
 
-local espBoxes = {}
-
--- UI Setup
+-- === UI Setup ===
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AimUI"
 screenGui.ResetOnSpawn = false
@@ -23,34 +20,28 @@ screenGui.Parent = player:WaitForChild("PlayerGui")
 -- Gear Button
 local gearButton = Instance.new("ImageButton")
 gearButton.Size = UDim2.new(0, 50, 0, 50)
-gearButton.Position = UDim2.new(0.05, 0, 0.05, 0)
-gearButton.Image = "rbxassetid://6031280882" -- gear icon
+gearButton.Position = UDim2.new(0, 10, 0, 10)
 gearButton.BackgroundTransparency = 1
+gearButton.Image = "rbxassetid://6031280882" -- Gear icon
 gearButton.Parent = screenGui
 
--- Menu Frame (Centered)
+-- Menu Frame
 local menu = Instance.new("Frame")
-menu.Size = UDim2.new(0, 220, 0, 260)
-menu.Position = UDim2.new(0.5, -110, 0.5, -130) -- Center of screen
+menu.Size = UDim2.new(0, 200, 0, 300)
+menu.Position = UDim2.new(0.5, -100, 0.5, -150)
 menu.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+menu.BorderSizePixel = 0
 menu.Visible = false
 menu.Parent = screenGui
 
--- Make gear button draggable
-local dragging = false
-local dragInput, dragStart, startPos
+-- Dragging
+local dragging, dragInput, dragStart, startPos
 
 gearButton.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.Touch then
 		dragging = true
 		dragStart = input.Position
 		startPos = gearButton.Position
-
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				dragging = false
-			end
-		end)
 	end
 end)
 
@@ -60,10 +51,16 @@ gearButton.InputChanged:Connect(function(input)
 	end
 end)
 
-UserInputService.InputChanged:Connect(function(input)
-	if input == dragInput and dragging then
-		local delta = input.Position - dragStart
+RunService.RenderStepped:Connect(function()
+	if dragging and dragInput then
+		local delta = dragInput.Position - dragStart
 		gearButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+
+game:GetService("UserInputService").InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
 	end
 end)
 
@@ -72,60 +69,109 @@ gearButton.MouseButton1Click:Connect(function()
 	menu.Visible = not menu.Visible
 end)
 
--- Helper to create toggle buttons
-local function createToggleButton(text, yPos, toggleFunction)
+-- Button creator
+local function createToggleButton(text, posY, toggleVarName)
 	local button = Instance.new("TextButton")
 	button.Size = UDim2.new(1, 0, 0, 40)
-	button.Position = UDim2.new(0, 0, 0, yPos)
+	button.Position = UDim2.new(0, 0, 0, posY)
 	button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 	button.TextColor3 = Color3.new(1,1,1)
 	button.Font = Enum.Font.SourceSansBold
 	button.TextSize = 18
-	button.Text = text
+	button.Text = text .. ": OFF"
 	button.Parent = menu
-	button.MouseButton1Click:Connect(toggleFunction)
+	
+	button.MouseButton1Click:Connect(function()
+		_G[toggleVarName] = not _G[toggleVarName]
+		button.Text = text .. ": " .. (_G[toggleVarName] and "ON" or "OFF")
+	end)
+	
+	return button
 end
 
--- Create buttons
-createToggleButton("Toggle Aimbot", 0, function() aiming = not aiming end)
-createToggleButton("Aim for Head/Torso", 40, function()
-	if aimPart == "Head" then
-		aimPart = "HumanoidRootPart"
-	else
-		aimPart = "Head"
+-- Toggle Buttons
+_G.aiming = false
+_G.teamCheck = false
+_G.wallCheck = false
+_G.espEnabled = false
+
+createToggleButton("Auto Aim", 0, "aiming")
+createToggleButton("Team Check", 50, "teamCheck")
+createToggleButton("Wall Check", 100, "wallCheck")
+createToggleButton("ESP", 150, "espEnabled")
+
+-- Switch Aim Part Button
+local aimPartButton = Instance.new("TextButton")
+aimPartButton.Size = UDim2.new(1, 0, 0, 40)
+aimPartButton.Position = UDim2.new(0, 0, 0, 200)
+aimPartButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+aimPartButton.TextColor3 = Color3.new(1,1,1)
+aimPartButton.Font = Enum.Font.SourceSansBold
+aimPartButton.TextSize = 18
+aimPartButton.Text = "Aim Part: Head"
+aimPartButton.Parent = menu
+
+aimPartButton.MouseButton1Click:Connect(function()
+	aimPart = (aimPart == "Head") and "HumanoidRootPart" or "Head"
+	aimPartButton.Text = "Aim Part: " .. (aimPart == "Head" and "Head" or "Torso")
+end)
+
+-- ESP Storage
+local espFolder = Instance.new("Folder")
+espFolder.Name = "ESPFolder"
+espFolder.Parent = screenGui
+
+local function clearESP()
+	for _, obj in ipairs(espFolder:GetChildren()) do
+		obj:Destroy()
 	end
-end)
-createToggleButton("Team Check", 80, function() teamCheck = not teamCheck end)
-createToggleButton("Wall Check", 120, function() wallCheck = not wallCheck end)
-createToggleButton("Toggle ESP", 160, function()
-	espEnabled = not espEnabled
-	updateESP()
-end)
-
--- ESP creation
-local function createHighlight(playerCharacter, color)
-	local highlight = Instance.new("Highlight")
-	highlight.Adornee = playerCharacter
-	highlight.FillColor = color
-	highlight.FillTransparency = 0.2
-	highlight.OutlineColor = Color3.new(1,1,1)
-	highlight.OutlineTransparency = 0.5
-	highlight.Parent = screenGui
-	return highlight
 end
 
-local function getHRPAndHealth(char)
-	if char and char:FindFirstChild(aimPart) and char:FindFirstChild("Humanoid") then
-		if char.Humanoid.Health > 0 then
-			return char[aimPart]
+local function createHighlight(plr)
+	local highlight = Instance.new("Highlight")
+	highlight.FillTransparency = 0.8
+	highlight.OutlineTransparency = 0.8
+	highlight.Adornee = plr.Character
+	highlight.Parent = espFolder
+	
+	if player.Team and plr.Team then
+		if player.Team == plr.Team then
+			highlight.FillColor = Color3.fromRGB(0, 0, 255) -- Blue = Ally
+		else
+			highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Red = Enemy
+		end
+	else
+		highlight.FillColor = Color3.fromRGB(255, 255, 0) -- Yellow = No team
+	end
+end
+
+-- Wall check helper
+local function hasLineOfSight(fromPos, toPos)
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+	rayParams.FilterDescendantsInstances = {player.Character}
+
+	local rayResult = workspace:Raycast(fromPos, (toPos - fromPos), rayParams)
+
+	return not rayResult -- Clear if nothing hit
+end
+
+-- Helper to get target part safely
+local function getTargetPart(character)
+	if character then
+		if aimPart == "Head" and character:FindFirstChild("Head") then
+			return character.Head
+		elseif aimPart == "HumanoidRootPart" and character:FindFirstChild("HumanoidRootPart") then
+			return character.HumanoidRootPart
 		end
 	end
 	return nil
 end
 
+-- Find closest alive enemy
 local function getClosestPlayer()
 	local myChar = player.Character
-	local myHRP = getHRPAndHealth(myChar)
+	local myHRP = getTargetPart(myChar)
 	if not myHRP then return nil end
 
 	local closestPlayer = nil
@@ -133,9 +179,14 @@ local function getClosestPlayer()
 
 	for _, otherPlr in ipairs(Players:GetPlayers()) do
 		if otherPlr ~= player and otherPlr.Character then
-			local otherHRP = getHRPAndHealth(otherPlr.Character)
-			if otherHRP then
-				if teamCheck and player.Team and otherPlr.Team and player.Team == otherPlr.Team then
+			local otherHRP = getTargetPart(otherPlr.Character)
+			local humanoid = otherPlr.Character:FindFirstChild("Humanoid")
+			if otherHRP and humanoid and humanoid.Health > 0 then
+				if _G.teamCheck and player.Team and otherPlr.Team and player.Team == otherPlr.Team then
+					continue
+				end
+
+				if _G.wallCheck and not hasLineOfSight(camera.CFrame.Position, otherHRP.Position) then
 					continue
 				end
 
@@ -151,47 +202,28 @@ local function getClosestPlayer()
 	return closestPlayer
 end
 
-function updateESP()
-	for _, v in ipairs(espBoxes) do
-		v:Destroy()
-	end
-	espBoxes = {}
-
-	if not espEnabled then return end
-
-	for _, plr in ipairs(Players:GetPlayers()) do
-		if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-			local color
-			if teamCheck and player.Team and plr.Team then
-				color = (player.Team == plr.Team) and Color3.fromRGB(0,170,255) or Color3.fromRGB(255,0,0)
-			else
-				color = Color3.fromRGB(255,255,0)
-			end
-
-			local highlight = createHighlight(plr.Character, color)
-			table.insert(espBoxes, highlight)
-		end
-	end
-end
-
--- Main Loop
-local lastESPUpdate = 0
-RunService.RenderStepped:Connect(function(dt)
-	if aiming then
+-- Main Loops
+RunService.RenderStepped:Connect(function()
+	-- Aiming
+	if _G.aiming then
 		local target = getClosestPlayer()
 		if target and target.Character then
-			local targetPart = getHRPAndHealth(target.Character)
+			local targetPart = getTargetPart(target.Character)
 			if targetPart then
 				camera.CFrame = CFrame.new(camera.CFrame.Position, targetPart.Position)
 			end
 		end
 	end
-
-	lastESPUpdate += dt
-	if lastESPUpdate >= 1 then
-		lastESPUpdate = 0
-		if espEnabled then
-			updateESP()
+	
+	-- ESP
+	clearESP()
+	if _G.espEnabled then
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
+				if plr.Character:FindFirstChild("Humanoid").Health > 0 then
+					createHighlight(plr)
+				end
+			end
 		end
 	end
 end)
