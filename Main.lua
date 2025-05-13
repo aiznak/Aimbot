@@ -2,11 +2,10 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
 
 --// Variables
 local player = Players.LocalPlayer
-local camera = Workspace.CurrentCamera
+local camera = workspace.CurrentCamera
 local aiming = false
 local espEnabled = false
 local teamCheck = false
@@ -21,39 +20,37 @@ screenGui.Parent = player:WaitForChild("PlayerGui")
 
 -- Gear Button
 local gearButton = Instance.new("ImageButton")
-gearButton.Size = UDim2.new(0, 50, 0, 50)
-gearButton.Position = UDim2.new(0.5, -25, 0.05, 0)
+gearButton.Size = UDim2.new(0, 40, 0, 40)
+gearButton.Position = UDim2.new(0.5, -20, 0.05, 0)
 gearButton.BackgroundTransparency = 1
 gearButton.Image = "rbxassetid://6031091006"
 gearButton.Parent = screenGui
 
--- Settings Menu (Rounded Pill Style)
+-- Settings Menu
 local menuFrame = Instance.new("Frame")
-menuFrame.Size = UDim2.new(0, 200, 0, 300)
-menuFrame.Position = UDim2.new(0.5, -100, 0.5, -150)
+menuFrame.Size = UDim2.new(0, 200, 0, 250)
+menuFrame.Position = UDim2.new(0.5, -100, 0.5, -125)
 menuFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+menuFrame.BorderSizePixel = 0
 menuFrame.Visible = false
 menuFrame.ClipsDescendants = true
 menuFrame.Parent = screenGui
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 25)
-corner.Parent = menuFrame
-
 local uiList = Instance.new("UIListLayout")
 uiList.Parent = menuFrame
-uiList.Padding = UDim.new(0, 5)
+uiList.Padding = UDim.new(0, 4)
 uiList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 uiList.VerticalAlignment = Enum.VerticalAlignment.Top
 
 local function createToggleButton(text)
 	local button = Instance.new("TextButton")
-	button.Size = UDim2.new(0, 180, 0, 40)
+	button.Size = UDim2.new(0, 180, 0, 30)
 	button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-	button.TextColor3 = Color3.fromRGB(255, 255, 255)
-	button.Font = Enum.Font.SourceSansBold
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.Font = Enum.Font.SourceSans
 	button.TextSize = 18
 	button.Text = text .. ": OFF"
+	button.AutoButtonColor = true
 	return button
 end
 
@@ -70,15 +67,16 @@ teamCheckToggle.Parent = menuFrame
 wallCheckToggle.Parent = menuFrame
 aimPartToggle.Parent = menuFrame
 
--- Draggable Function
-local function makeDraggable(gui)
-	local dragging, dragInput, dragStart, startPos
+-- Dragging Support
+local function makeDraggable(guiElement)
+	local dragging = false
+	local dragInput, dragStart, startPos
 
-	gui.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+	guiElement.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
 			dragStart = input.Position
-			startPos = gui.Position
+			startPos = guiElement.Position
 
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
@@ -88,15 +86,16 @@ local function makeDraggable(gui)
 		end
 	end)
 
-	UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement then
+	guiElement.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 			dragInput = input
 		end
+	end)
 
-		if dragging and input == dragInput then
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
 			local delta = input.Position - dragStart
-			gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
-				startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			guiElement.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 		end
 	end)
 end
@@ -109,7 +108,7 @@ gearButton.MouseButton1Click:Connect(function()
 	menuFrame.Visible = not menuFrame.Visible
 end)
 
--- Button Functions
+-- Toggle Actions
 aimToggle.MouseButton1Click:Connect(function()
 	aiming = not aiming
 	aimToggle.Text = "Auto Aim: " .. (aiming and "ON" or "OFF")
@@ -131,99 +130,88 @@ wallCheckToggle.MouseButton1Click:Connect(function()
 end)
 
 aimPartToggle.MouseButton1Click:Connect(function()
-	aimPart = (aimPart == "Head") and "HumanoidRootPart" or "Head"
+	aimPart = aimPart == "Head" and "HumanoidRootPart" or "Head"
 	aimPartToggle.Text = "Aim Part: " .. (aimPart == "Head" and "Head" or "Torso")
 end)
 
--- ESP Logic
+-- ESP
 local espFolder = Instance.new("Folder")
 espFolder.Name = "ESPFolder"
 espFolder.Parent = screenGui
 
-local function createESP(target)
+local espBoxes = {}
+
+local function createESP(playerTarget)
 	local box = Instance.new("BoxHandleAdornment")
 	box.Size = Vector3.new(4, 6, 2)
 	box.Transparency = 0.8
+	box.Color3 = Color3.new(1, 1, 0)
 	box.AlwaysOnTop = true
 	box.ZIndex = 5
-	box.Adornee = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+	box.Adornee = playerTarget.Character and playerTarget.Character:FindFirstChild("HumanoidRootPart")
 	box.Parent = espFolder
 	return box
 end
 
-local espObjects = {}
-
 local function updateESP()
-	for plr, box in pairs(espObjects) do
+	for plr, box in pairs(espBoxes) do
 		if plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
 			box.Adornee = plr.Character.HumanoidRootPart
-			if teamCheck and plr.Team == player.Team then
-				box.Color3 = Color3.fromRGB(0, 0, 255)
-			elseif plr.Team == nil or player.Team == nil then
-				box.Color3 = Color3.fromRGB(255, 255, 0)
+			if teamCheck and player.Team and plr.Team then
+				box.Color3 = (plr.Team == player.Team) and Color3.new(0, 0, 1) or Color3.new(1, 0, 0)
 			else
-				box.Color3 = Color3.fromRGB(255, 0, 0)
+				box.Color3 = Color3.new(1, 1, 0)
 			end
 		else
 			box:Destroy()
-			espObjects[plr] = nil
+			espBoxes[plr] = nil
 		end
 	end
 end
 
 RunService.RenderStepped:Connect(function()
 	if espEnabled then
-		for _, target in ipairs(Players:GetPlayers()) do
-			if target ~= player then
-				if not espObjects[target] then
-					espObjects[target] = createESP(target)
-				end
+		for _, plr in pairs(Players:GetPlayers()) do
+			if plr ~= player and not espBoxes[plr] then
+				espBoxes[plr] = createESP(plr)
 			end
 		end
 		updateESP()
 	else
-		for _, box in pairs(espObjects) do
+		for _, box in pairs(espBoxes) do
 			box:Destroy()
 		end
-		espObjects = {}
+		espBoxes = {}
 	end
 end)
 
--- Get Target
+-- Get Closest Target
 local function getTarget()
 	local myChar = player.Character
 	if not myChar then return nil end
-
-	local myHumanoid = myChar:FindFirstChild("Humanoid")
-	if not myHumanoid or myHumanoid.Health <= 0 then return nil end
+	local myHum = myChar:FindFirstChild("Humanoid")
+	if not myHum or myHum.Health <= 0 then return nil end
 
 	local closest = nil
-	local minDist = math.huge
+	local shortest = math.huge
 
-	for _, other in ipairs(Players:GetPlayers()) do
-		if other ~= player and other.Character then
-			local humanoid = other.Character:FindFirstChild("Humanoid")
-			local part = other.Character:FindFirstChild(aimPart)
-			if humanoid and humanoid.Health > 0 and part then
-				if teamCheck and player.Team == other.Team then
-					continue
-				end
+	for _, target in pairs(Players:GetPlayers()) do
+		if target ~= player and target.Character and target.Character:FindFirstChild(aimPart) then
+			local part = target.Character[aimPart]
+			local hum = target.Character:FindFirstChild("Humanoid")
+			if hum and hum.Health > 0 then
+				if teamCheck and player.Team == target.Team then continue end
 
 				if wallCheck then
-					local rayParams = RaycastParams.new()
-					rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-					rayParams.FilterDescendantsInstances = {player.Character}
-
-					local result = Workspace:Raycast(camera.CFrame.Position, (part.Position - camera.CFrame.Position).Unit * 999, rayParams)
-
-					if result and result.Instance and not part:IsDescendantOf(result.Instance.Parent) then
+					local ray = workspace:Raycast(camera.CFrame.Position, (part.Position - camera.CFrame.Position).Unit * 999, RaycastParams.new())
+					if ray and ray.Instance and not part:IsDescendantOf(ray.Instance.Parent) then
 						continue
 					end
 				end
 
-				local distance = (camera.CFrame.Position - part.Position).Magnitude
-				if distance < minDist then
-					minDist = distance
+				local dist = (camera.CFrame.Position - part.Position).Magnitude
+				if dist < shortest then
+					shortest = dist
 					closest = part
 				end
 			end
@@ -233,7 +221,7 @@ local function getTarget()
 	return closest
 end
 
--- Auto Aim
+-- Aimbot
 RunService.RenderStepped:Connect(function()
 	if aiming then
 		local target = getTarget()
