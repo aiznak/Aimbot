@@ -67,10 +67,9 @@ teamCheckToggle.Parent = menuFrame
 wallCheckToggle.Parent = menuFrame
 aimPartToggle.Parent = menuFrame
 
--- Dragging Support
+-- Dragging
 local function makeDraggable(guiElement)
-	local dragging = false
-	local dragInput, dragStart, startPos
+	local dragging, dragStart, startPos, dragInput
 
 	guiElement.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -103,12 +102,12 @@ end
 makeDraggable(gearButton)
 makeDraggable(menuFrame)
 
--- Gear Toggle
+-- Gear Button Toggle
 gearButton.MouseButton1Click:Connect(function()
 	menuFrame.Visible = not menuFrame.Visible
 end)
 
--- Toggle Actions
+-- Toggle Events
 aimToggle.MouseButton1Click:Connect(function()
 	aiming = not aiming
 	aimToggle.Text = "Auto Aim: " .. (aiming and "ON" or "OFF")
@@ -130,25 +129,25 @@ wallCheckToggle.MouseButton1Click:Connect(function()
 end)
 
 aimPartToggle.MouseButton1Click:Connect(function()
-	aimPart = aimPart == "Head" and "HumanoidRootPart" or "Head"
+	aimPart = (aimPart == "Head") and "HumanoidRootPart" or "Head"
 	aimPartToggle.Text = "Aim Part: " .. (aimPart == "Head" and "Head" or "Torso")
 end)
 
--- ESP
+-- ESP Setup
 local espFolder = Instance.new("Folder")
 espFolder.Name = "ESPFolder"
 espFolder.Parent = screenGui
 
 local espBoxes = {}
 
-local function createESP(playerTarget)
+local function createESP(plr)
 	local box = Instance.new("BoxHandleAdornment")
 	box.Size = Vector3.new(4, 6, 2)
 	box.Transparency = 0.8
-	box.Color3 = Color3.new(1, 1, 0)
 	box.AlwaysOnTop = true
 	box.ZIndex = 5
-	box.Adornee = playerTarget.Character and playerTarget.Character:FindFirstChild("HumanoidRootPart")
+	box.Color3 = Color3.new(1, 1, 0)
+	box.Adornee = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
 	box.Parent = espFolder
 	return box
 end
@@ -185,29 +184,38 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- Get Closest Target
+-- Wall Check Setup
+local function isVisible(part)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Blacklist
+	params.FilterDescendantsInstances = {player.Character}
+	params.IgnoreWater = true
+
+	local result = workspace:Raycast(camera.CFrame.Position, (part.Position - camera.CFrame.Position).Unit * 500, params)
+
+	if not result then
+		return true
+	end
+
+	return result.Instance:IsDescendantOf(part.Parent)
+end
+
+-- Targeting
 local function getTarget()
 	local myChar = player.Character
 	if not myChar then return nil end
 	local myHum = myChar:FindFirstChild("Humanoid")
 	if not myHum or myHum.Health <= 0 then return nil end
 
-	local closest = nil
-	local shortest = math.huge
+	local closest, shortest = nil, math.huge
 
-	for _, target in pairs(Players:GetPlayers()) do
-		if target ~= player and target.Character and target.Character:FindFirstChild(aimPart) then
-			local part = target.Character[aimPart]
-			local hum = target.Character:FindFirstChild("Humanoid")
+	for _, plr in pairs(Players:GetPlayers()) do
+		if plr ~= player and plr.Character and plr.Character:FindFirstChild(aimPart) then
+			local part = plr.Character[aimPart]
+			local hum = plr.Character:FindFirstChild("Humanoid")
 			if hum and hum.Health > 0 then
-				if teamCheck and player.Team == target.Team then continue end
-
-				if wallCheck then
-					local ray = workspace:Raycast(camera.CFrame.Position, (part.Position - camera.CFrame.Position).Unit * 999, RaycastParams.new())
-					if ray and ray.Instance and not part:IsDescendantOf(ray.Instance.Parent) then
-						continue
-					end
-				end
+				if teamCheck and player.Team == plr.Team then continue end
+				if wallCheck and not isVisible(part) then continue end
 
 				local dist = (camera.CFrame.Position - part.Position).Magnitude
 				if dist < shortest then
@@ -221,7 +229,7 @@ local function getTarget()
 	return closest
 end
 
--- Aimbot
+-- Aiming Logic
 RunService.RenderStepped:Connect(function()
 	if aiming then
 		local target = getTarget()
