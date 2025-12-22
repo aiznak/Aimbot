@@ -3,7 +3,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
-local TweenService = game:GetService("TweenService")
 
 --// Variables
 local player = Players.LocalPlayer
@@ -27,15 +26,6 @@ local CYCLE_LIMIT = 3
 -- Thresholds
 local ESP_GREEN_THRESHOLD = 8       -- ESP green within 8 studs
 local TELEPORT_THRESHOLD  = 30      -- teleport allowed within 30 studs (below 31)
-
--- Smooth teleport settings
-local TELEPORT_SPEED      = 25      -- studs per second (movement speed)
-local TELEPORT_MIN_TIME   = 0.15    -- minimum tween time (s)
-local TELEPORT_MAX_TIME   = 1.25    -- maximum tween time (s)
-local TELEPORT_UP_OFFSET  = 0.5     -- slight vertical lift to avoid ground clipping
-local TELEPORT_BACK_OFFSET= 3.0     -- offset behind target
-local TELEPORT_EASE_STYLE = Enum.EasingStyle.Sine
-local TELEPORT_EASE_DIR   = Enum.EasingDirection.Out
 
 -- UI Colors
 local COLOR_ENABLED = Color3.fromRGB(0, 200, 0)
@@ -409,11 +399,8 @@ local function updateESP()
     end
 end
 
--- Smooth Teleport (move behind the target instead of instant)
-local teleportBusy = false
+-- Teleport (shared handler)
 local function attemptTeleportBehind(buttonToUpdate)
-    if teleportBusy then return end
-
     local myChar = player.Character
     local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myHRP then
@@ -421,53 +408,28 @@ local function attemptTeleportBehind(buttonToUpdate)
         task.delay(1.2, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
         return
     end
-
     local targetPart = acquireTargetPart()
     if not targetPart or not targetPart.Parent then
         if buttonToUpdate then buttonToUpdate.Text = "Teleport (no target)" end
         task.delay(1.2, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
         return
     end
-
     local targetHRP = targetPart.Parent:FindFirstChild("HumanoidRootPart")
     if not targetHRP then
         if buttonToUpdate then buttonToUpdate.Text = "Teleport (no HRP)" end
         task.delay(1.2, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
         return
     end
-
     local dist = (targetHRP.Position - myHRP.Position).Magnitude
-    if dist > TELEPORT_THRESHOLD then
-        if buttonToUpdate then buttonToUpdate.Text = "Too far (>30)" end
-        task.delay(1.0, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
-        return
-    end
-
-    -- Compute destination behind the target
-    local backPos = targetHRP.Position - targetHRP.CFrame.LookVector * TELEPORT_BACK_OFFSET + Vector3.new(0, TELEPORT_UP_OFFSET, 0)
-    local goalCFrame = CFrame.new(backPos, targetHRP.Position)
-
-    -- Duration based on remaining distance
-    local travelDist = (backPos - myHRP.Position).Magnitude
-    local duration = math.clamp(travelDist / TELEPORT_SPEED, TELEPORT_MIN_TIME, TELEPORT_MAX_TIME)
-
-    -- Play tween
-    teleportBusy = true
-    if buttonToUpdate then buttonToUpdate.Text = string.format("Moving (%.1fs)", duration) end
-
-    local tween = TweenService:Create(
-        myHRP,
-        TweenInfo.new(duration, TELEPORT_EASE_STYLE, TELEPORT_EASE_DIR),
-        { CFrame = goalCFrame }
-    )
-
-    tween:Play()
-
-    tween.Completed:Connect(function()
-        teleportBusy = false
+    if dist <= TELEPORT_THRESHOLD then
+        local backOffset = 3.0
+        local newPos = targetHRP.Position - targetHRP.CFrame.LookVector * backOffset + Vector3.new(0, 0.5, 0)
+        myHRP.CFrame = CFrame.new(newPos, targetHRP.Position)
         if buttonToUpdate then buttonToUpdate.Text = "Teleported!" end
-        task.delay(1.0, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
-    end)
+    else
+        if buttonToUpdate then buttonToUpdate.Text = "Too far (>30)" end
+    end
+    task.delay(1.0, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
 end
 
 teleportBehindBtn.MouseButton1Click:Connect(function()
@@ -577,3 +539,5 @@ RunService.RenderStepped:Connect(function()
         lineDrawer.Visible = false
     end
 end)
+
+
