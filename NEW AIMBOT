@@ -27,6 +27,15 @@ local CYCLE_LIMIT = 3
 local ESP_GREEN_THRESHOLD = 8       -- ESP green within 8 studs
 local TELEPORT_THRESHOLD  = 30      -- teleport allowed within 30 studs (below 31)
 
+-- Orbit (circle around) settings (2x faster)
+local ORBIT_ARC_DEG       = 180     -- degrees to orbit to reach back (180 = half circle; set 360 for full circle)
+local ORBIT_CW            = true    -- true = clockwise, false = counter-clockwise
+local ORBIT_SPEED_STUDS   = 40      -- studs/sec along the arc (2x faster than 20)
+local ORBIT_MIN_TIME      = 0.25    -- minimum orbit duration
+local ORBIT_MAX_TIME      = 2.0     -- maximum orbit duration
+local ORBIT_UP_OFFSET     = 0.5     -- slight lift while orbiting
+local ORBIT_FINAL_BACK    = 3.0     -- final back offset (studs) from target when orbit completes
+
 -- UI Colors
 local COLOR_ENABLED = Color3.fromRGB(0, 200, 0)
 local COLOR_DISABLED = Color3.fromRGB(200, 60, 60)
@@ -48,7 +57,7 @@ gearButton.Image = "rbxassetid://6031091006"
 gearButton.Parent = screenGui
 
 local menuFrame = Instance.new("Frame")
-menuFrame.Size = UDim2.new(0, 260, 0, 520) -- slightly wider/taller to fit bigger buttons
+menuFrame.Size = UDim2.new(0, 260, 0, 520)
 menuFrame.Position = UDim2.new(0.5, -130, 0.5, -260)
 menuFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 menuFrame.BorderSizePixel = 0
@@ -96,7 +105,7 @@ local lockCenterToggle = createToggleButton("Lock To Screen Center")
 local drawLinesToggle = createToggleButton("Draw Lines")
 local cycleToggle = createToggleButton("Cycle Target")
 local nextTargetBtn = createButton("Next Target")
-local teleportBehindBtn = createButton("Teleport Behind (<=30)") -- bigger size via createButton
+local teleportBehindBtn = createButton("Teleport Behind (<=30 & <=8)")
 
 aimToggle.Parent = menuFrame
 espToggle.Parent = menuFrame
@@ -109,17 +118,17 @@ cycleToggle.Parent = menuFrame
 nextTargetBtn.Parent = menuFrame
 teleportBehindBtn.Parent = menuFrame
 
--- SECOND TELEPORT BUTTON (fixed at top-right, non-draggable) - bigger
+-- SECOND TELEPORT BUTTON (fixed at top-right, non-draggable)
 local teleportTopRightBtn = Instance.new("TextButton")
 teleportTopRightBtn.Name = "TeleportTopRight"
-teleportTopRightBtn.Size = UDim2.new(0, 200, 0, 44) -- was 160x32; now larger
+teleportTopRightBtn.Size = UDim2.new(0, 200, 0, 44)
 teleportTopRightBtn.AnchorPoint = Vector2.new(1, 0)
-teleportTopRightBtn.Position = UDim2.new(1, -12, 0, 12) -- small margin tweak
+teleportTopRightBtn.Position = UDim2.new(1, -12, 0, 12)
 teleportTopRightBtn.BackgroundColor3 = COLOR_NEUTRAL
 teleportTopRightBtn.TextColor3 = Color3.new(1, 1, 1)
 teleportTopRightBtn.Font = Enum.Font.SourceSansBold
 teleportTopRightBtn.TextSize = 20
-teleportTopRightBtn.Text = "Teleport (<=30)"
+teleportTopRightBtn.Text = "Teleport (<=30 & <=8)"
 teleportTopRightBtn.AutoButtonColor = true
 teleportTopRightBtn.ZIndex = 10
 teleportTopRightBtn.Parent = screenGui
@@ -399,37 +408,111 @@ local function updateESP()
     end
 end
 
--- Teleport (shared handler)
+-- =========================
+-- ORBIT TELEPORT (circle around to the back) -- only when ESP is green (<=8)
+-- =========================
+local teleportBusy = false
 local function attemptTeleportBehind(buttonToUpdate)
+    if teleportBusy then return end
+
     local myChar = player.Character
     local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myHRP then
         if buttonToUpdate then buttonToUpdate.Text = "Teleport (no HRP)" end
-        task.delay(1.2, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
+        task.delay(1.2, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30 & <=8)" end end)
         return
     end
+
     local targetPart = acquireTargetPart()
     if not targetPart or not targetPart.Parent then
         if buttonToUpdate then buttonToUpdate.Text = "Teleport (no target)" end
-        task.delay(1.2, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
+        task.delay(1.2, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30 & <=8)" end end)
         return
     end
+
     local targetHRP = targetPart.Parent:FindFirstChild("HumanoidRootPart")
     if not targetHRP then
         if buttonToUpdate then buttonToUpdate.Text = "Teleport (no HRP)" end
-        task.delay(1.2, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
+        task.delay(1.2, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30 & <=8)" end end)
         return
     end
-    local dist = (targetHRP.Position - myHRP.Position).Magnitude
-    if dist <= TELEPORT_THRESHOLD then
-        local backOffset = 3.0
-        local newPos = targetHRP.Position - targetHRP.CFrame.LookVector * backOffset + Vector3.new(0, 0.5, 0)
-        myHRP.CFrame = CFrame.new(newPos, targetHRP.Position)
-        if buttonToUpdate then buttonToUpdate.Text = "Teleported!" end
-    else
+
+    local distToTarget = (targetHRP.Position - myHRP.Position).Magnitude
+    -- Require BOTH: within teleport threshold AND within ESP green threshold
+    if distToTarget > TELEPORT_THRESHOLD then
         if buttonToUpdate then buttonToUpdate.Text = "Too far (>30)" end
+        task.delay(1.0, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30 & <=8)" end end)
+        return
     end
-    task.delay(1.0, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
+    if distToTarget > ESP_GREEN_THRESHOLD then
+        if buttonToUpdate then buttonToUpdate.Text = "ESP not green (<=8)" end
+        task.delay(1.0, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30 & <=8)" end end)
+        return
+    end
+
+    -- Orbit math on XZ plane around target
+    local center = targetHRP.Position
+    local startVec = (myHRP.Position - center)
+    local startXZ = Vector3.new(startVec.X, 0, startVec.Z)
+    local radius = startXZ.Magnitude
+    if radius < 1.0 then radius = 2.0 end
+
+    local backVec = -targetHRP.CFrame.LookVector
+    local backXZ = Vector3.new(backVec.X, 0, backVec.Z).Unit
+
+    local function yawOf(v)
+        return math.atan2(v.X, v.Z)
+    end
+
+    local startAngle = yawOf(startXZ)
+    local backAngle  = yawOf(backXZ)
+
+    local arcRad = math.rad(ORBIT_ARC_DEG)
+    local dir = ORBIT_CW and 1 or -1
+
+    local function normalizeAngle(a)
+        while a > math.pi do a = a - 2*math.pi end
+        while a < -math.pi do a = a + 2*math.pi end
+        return a
+    end
+
+    local deltaToBack = normalizeAngle(backAngle - startAngle)
+    if dir == 1 and deltaToBack < 0 then deltaToBack = deltaToBack + 2*math.pi end
+    if dir == -1 and deltaToBack > 0 then deltaToBack = deltaToBack - 2*math.pi end
+
+    local targetDelta = math.clamp(deltaToBack, -arcRad, arcRad)
+
+    local arcLen = math.abs(radius * targetDelta)
+    local duration = math.clamp(arcLen / ORBIT_SPEED_STUDS, ORBIT_MIN_TIME, ORBIT_MAX_TIME)
+
+    teleportBusy = true
+    if buttonToUpdate then buttonToUpdate.Text = string.format("Orbiting (%.2fs)", duration) end
+
+    local startTime = tick()
+    local connection
+    connection = RunService.RenderStepped:Connect(function()
+        local t = (tick() - startTime) / duration
+        if t >= 1 then t = 1 end
+        local eased = math.sin((t * math.pi) / 2) -- ease-out
+        local angle = startAngle + dir * targetDelta * eased
+        local pos = Vector3.new(
+            center.X + radius * math.sin(angle),
+            center.Y + ORBIT_UP_OFFSET,
+            center.Z + radius * math.cos(angle)
+        )
+        myHRP.CFrame = CFrame.new(pos, center)
+
+        if t >= 1 then
+            connection:Disconnect()
+            local finalBackPos = center - targetHRP.CFrame.LookVector * ORBIT_FINAL_BACK + Vector3.new(0, ORBIT_UP_OFFSET, 0)
+            myHRP.CFrame = CFrame.new(finalBackPos, center)
+            teleportBusy = false
+            if buttonToUpdate then buttonToUpdate.Text = "Teleported!" end
+            task.delay(1.0, function()
+                if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30 & <=8)" end
+            end)
+        end
+    end)
 end
 
 teleportBehindBtn.MouseButton1Click:Connect(function()
@@ -498,7 +581,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Live range UI updates for teleport buttons
+    -- Live range UI updates (must be within both thresholds)
     local myChar = player.Character
     local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
     local activeTarget = acquireTargetPart()
@@ -506,22 +589,25 @@ RunService.RenderStepped:Connect(function()
         local targetHRP = activeTarget.Parent:FindFirstChild("HumanoidRootPart")
         if targetHRP then
             local dist = (targetHRP.Position - myHRP.Position).Magnitude
-            -- Menu button
-            teleportBehindBtn.Text = string.format("Teleport Behind (%.1f/<=30)", dist)
-            teleportBehindBtn.BackgroundColor3 = (dist <= TELEPORT_THRESHOLD) and COLOR_ENABLED or COLOR_DISABLED
-            -- Top-right button
-            teleportTopRightBtn.Text = string.format("Teleport (%.1f/<=30)", dist)
-            teleportTopRightBtn.BackgroundColor3 = (dist <= TELEPORT_THRESHOLD) and COLOR_ENABLED or COLOR_DISABLED
+            local inGreen = dist <= ESP_GREEN_THRESHOLD
+            local inTeleport = dist <= TELEPORT_THRESHOLD
+            local ok = inGreen and inTeleport
+
+            teleportBehindBtn.Text = string.format("Teleport Behind (%.1f/<=30 & <=8)", dist)
+            teleportBehindBtn.BackgroundColor3 = ok and COLOR_ENABLED or COLOR_DISABLED
+
+            teleportTopRightBtn.Text = string.format("Teleport (%.1f/<=30 & <=8)", dist)
+            teleportTopRightBtn.BackgroundColor3 = ok and COLOR_ENABLED or COLOR_DISABLED
         else
-            teleportBehindBtn.Text = "Teleport Behind (<=30)"
+            teleportBehindBtn.Text = "Teleport Behind (<=30 & <=8)"
             teleportBehindBtn.BackgroundColor3 = COLOR_NEUTRAL
-            teleportTopRightBtn.Text = "Teleport (<=30)"
+            teleportTopRightBtn.Text = "Teleport (<=30 & <=8)"
             teleportTopRightBtn.BackgroundColor3 = COLOR_NEUTRAL
         end
     else
-        teleportBehindBtn.Text = "Teleport Behind (<=30)"
+        teleportBehindBtn.Text = "Teleport Behind (<=30 & <=8)"
         teleportBehindBtn.BackgroundColor3 = COLOR_NEUTRAL
-        teleportTopRightBtn.Text = "Teleport (<=30)"
+        teleportTopRightBtn.Text = "Teleport (<=30 & <=8)"
         teleportTopRightBtn.BackgroundColor3 = COLOR_NEUTRAL
     end
 
