@@ -35,22 +35,40 @@ local COLOR_NEUTRAL = Color3.fromRGB(60, 60, 60)
 
 --// UI Setup
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AimbotUI_Extreme"
+screenGui.Name = "AimbotUI_Final"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.Enabled = true
-screenGui.DisplayOrder = 2147483647 -- MAX PRIORITY
+screenGui.DisplayOrder = 2147483647 
 
--- Parent to CoreGui to bypass game-defined UI layers
+-- Force parent to CoreGui
 local pCallSuccess, _ = pcall(function() screenGui.Parent = CoreGui end)
 if not pCallSuccess then screenGui.Parent = player:WaitForChild("PlayerGui") end
 
+-- Helper for buttons
+local function createButton(text, size, pos, zindex)
+    local btn = Instance.new("TextButton")
+    btn.Size = size
+    btn.Position = pos
+    btn.BackgroundColor3 = COLOR_NEUTRAL
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 20
+    btn.Text = text
+    btn.AutoButtonColor = true
+    btn.ZIndex = zindex
+    btn.Active = true
+    btn.Modal = true -- THIS PREVENTS CLICKS FROM GOING THROUGH TO THE GAME
+    return btn
+end
+
+-- MAIN GEAR & MENU
 local gearButton = Instance.new("ImageButton")
 gearButton.Size = UDim2.new(0, 40, 0, 40)
 gearButton.Position = UDim2.new(0.5, -20, 0.05, 0)
 gearButton.BackgroundTransparency = 1
 gearButton.Image = "rbxassetid://6031091006"
-gearButton.ZIndex = 100
+gearButton.ZIndex = 200
 gearButton.Parent = screenGui
 
 local menuFrame = Instance.new("Frame")
@@ -59,83 +77,48 @@ menuFrame.Position = UDim2.new(0.5, -130, 0.5, -260)
 menuFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 menuFrame.BorderSizePixel = 0
 menuFrame.Visible = false
-menuFrame.ClipsDescendants = true
-menuFrame.ZIndex = 50
+menuFrame.ZIndex = 150
 menuFrame.Parent = screenGui
 
 local uiList = Instance.new("UIListLayout")
 uiList.Parent = menuFrame
 uiList.Padding = UDim.new(0, 8)
 uiList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-uiList.VerticalAlignment = Enum.VerticalAlignment.Top
 
-local function createToggleButton(text)
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(0, 240, 0, 36)
-    button.BackgroundColor3 = COLOR_NEUTRAL
-    button.TextColor3 = Color3.new(1, 1, 1)
-    button.Font = Enum.Font.SourceSans
-    button.TextSize = 18
-    button.Text = text .. ": OFF"
-    button.AutoButtonColor = true
-    return button
-end
-
-local function createButton(text)
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(0, 240, 0, 36)
-    button.BackgroundColor3 = COLOR_NEUTRAL
-    button.TextColor3 = Color3.new(1, 1, 1)
-    button.Font = Enum.Font.SourceSans
-    button.TextSize = 18
-    button.Text = text
-    button.AutoButtonColor = true
-    return button
-end
-
--- Buttons in menu
-local aimToggle = createToggleButton("Auto Aim")
-local espToggle = createToggleButton("ESP")
-local teamCheckToggle = createToggleButton("Team Check")
-local wallCheckToggle = createToggleButton("Wall Check")
-local aimPartToggle = createToggleButton("Aim Part: Head")
-local lockCenterToggle = createToggleButton("Lock To Screen Center")
-local drawLinesToggle = createToggleButton("Draw Lines")
-local cycleToggle = createToggleButton("Cycle Target")
-local nextTargetBtn = createButton("Next Target")
-local teleportBehindBtn = createButton("Teleport Behind (<=30)") 
-
-aimToggle.Parent = menuFrame
-espToggle.Parent = menuFrame
-teamCheckToggle.Parent = menuFrame
-wallCheckToggle.Parent = menuFrame
-aimPartToggle.Parent = menuFrame
-lockCenterToggle.Parent = menuFrame
-drawLinesToggle.Parent = menuFrame
-cycleToggle.Parent = menuFrame
-nextTargetBtn.Parent = menuFrame
-teleportBehindBtn.Parent = menuFrame
-
--- SECOND TELEPORT BUTTON (Top Right Fix)
-local teleportTopRightBtn = Instance.new("TextButton")
-teleportTopRightBtn.Name = "TeleportTopRight"
-teleportTopRightBtn.Size = UDim2.new(0, 200, 0, 44) 
+-- TOP-RIGHT TELEPORT BUTTON (Consolidated Fix)
+local teleportTopRightBtn = createButton(
+    "Teleport (<=30)", 
+    UDim2.new(0, 200, 0, 44), 
+    UDim2.new(1, -12, 0, 12), 
+    2147483647
+)
 teleportTopRightBtn.AnchorPoint = Vector2.new(1, 0)
-teleportTopRightBtn.Position = UDim2.new(1, -12, 0, 12) 
-teleportTopRightBtn.BackgroundColor3 = COLOR_NEUTRAL
-teleportTopRightBtn.TextColor3 = Color3.new(1, 1, 1)
-teleportTopRightBtn.Font = Enum.Font.SourceSansBold
-teleportTopRightBtn.TextSize = 20
-teleportTopRightBtn.Text = "Teleport (<=30)"
-teleportTopRightBtn.AutoButtonColor = true
-teleportTopRightBtn.ZIndex = 2147483647 -- MAXIMUM ZINDEX
 teleportTopRightBtn.Parent = screenGui
-teleportTopRightBtn.Active = true
+
+-- BUTTONS INSIDE MENU
+local function createMenuToggle(label)
+    local b = createButton(label .. ": OFF", UDim2.new(0, 240, 0, 36), UDim2.new(0,0,0,0), 160)
+    b.Parent = menuFrame
+    return b
+end
+
+local aimToggle = createMenuToggle("Auto Aim")
+local espToggle = createMenuToggle("ESP")
+setmetatable({},{__index=function() espToggle.Text = "ESP: ON" end}) -- Initial state
+local teamCheckToggle = createMenuToggle("Team Check")
+local wallCheckToggle = createMenuToggle("Wall Check")
+local aimPartToggle = createMenuToggle("Aim Part: Head")
+local lockCenterToggle = createMenuToggle("Lock To Screen Center")
+local drawLinesToggle = createMenuToggle("Draw Lines")
+local cycleToggle = createMenuToggle("Cycle Target")
+local nextTargetBtn = createButton("Next Target", UDim2.new(0, 240, 0, 36), UDim2.new(0,0,0,0), 160)
+nextTargetBtn.Parent = menuFrame
+local teleportBehindBtn = createButton("Teleport Behind (<=30)", UDim2.new(0, 240, 0, 36), UDim2.new(0,0,0,0), 160)
+teleportBehindBtn.Parent = menuFrame
 
 -- Dragging helper
 local function makeDraggable(guiElement)
-    local dragging = false
-    local dragInput, dragStart, startPos
+    local dragging, dragInput, dragStart, startPos
     guiElement.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
@@ -146,13 +129,8 @@ local function makeDraggable(guiElement)
             end)
         end
     end)
-    guiElement.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
     UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local delta = input.Position - dragStart
             guiElement.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
@@ -162,123 +140,20 @@ end
 makeDraggable(gearButton)
 makeDraggable(menuFrame)
 
-gearButton.MouseButton1Click:Connect(function()
-    menuFrame.Visible = not menuFrame.Visible
-end)
+gearButton.MouseButton1Click:Connect(function() menuFrame.Visible = not menuFrame.Visible end)
 
--- Toggle logic
-local function setToggleText(btn, label, state)
-    btn.Text = label .. ": " .. (state and "ON" or "OFF")
-end
+-- LOGIC HELPERS
+local function setToggleText(btn, label, state) btn.Text = label .. ": " .. (state and "ON" or "OFF") end
 
-aimToggle.MouseButton1Click:Connect(function()
-    aiming = not aiming
-    setToggleText(aimToggle, "Auto Aim", aiming)
-end)
+aimToggle.MouseButton1Click:Connect(function() aiming = not aiming; setToggleText(aimToggle, "Auto Aim", aiming) end)
+espToggle.MouseButton1Click:Connect(function() espEnabled = not espEnabled; setToggleText(espToggle, "ESP", espEnabled) end)
+teamCheckToggle.MouseButton1Click:Connect(function() teamCheck = not teamCheck; setToggleText(teamCheckToggle, "Team Check", teamCheck) end)
+wallCheckToggle.MouseButton1Click:Connect(function() wallCheck = not wallCheck; setToggleText(wallCheckToggle, "Wall Check", wallCheck) end)
+aimPartToggle.MouseButton1Click:Connect(function() aimPart = (aimPart == "Head") and "HumanoidRootPart" or "Head"; aimPartToggle.Text = "Aim Part: " .. aimPart end)
+lockCenterToggle.MouseButton1Click:Connect(function() lockToCenter = not lockToCenter; setToggleText(lockCenterToggle, "Lock To Screen Center", lockToCenter) end)
+drawLinesToggle.MouseButton1Click:Connect(function() drawLines = not drawLines; setToggleText(drawLinesToggle, "Draw Lines", drawLines) end)
 
-espToggle.MouseButton1Click:Connect(function()
-    espEnabled = not espEnabled
-    setToggleText(espToggle, "ESP", espEnabled)
-end)
-
-teamCheckToggle.MouseButton1Click:Connect(function()
-    teamCheck = not teamCheck
-    setToggleText(teamCheckToggle, "Team Check", teamCheck)
-end)
-
-wallCheckToggle.MouseButton1Click:Connect(function()
-    wallCheck = not wallCheck
-    setToggleText(wallCheckToggle, "Wall Check", wallCheck)
-end)
-
-aimPartToggle.MouseButton1Click:Connect(function()
-    aimPart = (aimPart == "Head") and "HumanoidRootPart" or "Head"
-    aimPartToggle.Text = "Aim Part: " .. aimPart
-end)
-
-lockCenterToggle.MouseButton1Click:Connect(function()
-    lockToCenter = not lockToCenter
-    setToggleText(lockCenterToggle, "Lock To Screen Center", lockToCenter)
-end)
-
-drawLinesToggle.MouseButton1Click:Connect(function()
-    drawLines = not drawLines
-    setToggleText(drawLinesToggle, "Draw Lines", drawLines)
-end)
-
--- Target Logic
-local function buildNearestCycleList()
-    cycleList = {}
-    for _, target in pairs(Players:GetPlayers()) do
-        if target ~= player and target.Character and target.Character:FindFirstChild(aimPart) then
-            local part = target.Character[aimPart]
-            local hum = target.Character:FindFirstChild("Humanoid")
-            if hum and hum.Health > 0 then
-                if teamCheck and player.Team and target.Team and player.Team == target.Team then
-                else
-                    local passesWall = true
-                    if wallCheck and camera and part then
-                        local origin = camera.CFrame.Position
-                        local direction = (part.Position - origin)
-                        local rayParams = RaycastParams.new()
-                        rayParams.FilterDescendantsInstances = {player.Character}
-                        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-                        local raycastResult = Workspace:Raycast(origin, direction.Unit * direction.Magnitude, rayParams)
-                        if raycastResult and raycastResult.Instance and not part:IsDescendantOf(raycastResult.Instance.Parent) then
-                            passesWall = false
-                        end
-                    end
-                    if passesWall then
-                        table.insert(cycleList, {player = target, dist = (part.Position - camera.CFrame.Position).Magnitude})
-                    end
-                end
-            end
-        end
-    end
-    table.sort(cycleList, function(a,b) return a.dist < b.dist end)
-    if #cycleList > CYCLE_LIMIT then
-        for i = CYCLE_LIMIT + 1, #cycleList do cycleList[i] = nil end
-    end
-end
-
-cycleToggle.MouseButton1Click:Connect(function()
-    cycleMode = not cycleMode
-    setToggleText(cycleToggle, "Cycle Target", cycleMode)
-    if cycleMode then
-        buildNearestCycleList()
-        if #cycleList == 0 then
-            cycleIndex = 0; aimOverridePart = nil; nextTargetBtn.Text = "Next Target (none)"
-        else
-            cycleIndex = 1
-            local chosen = cycleList[cycleIndex].player
-            if chosen and chosen.Character and chosen.Character:FindFirstChild(aimPart) then
-                aimOverridePart = chosen.Character[aimPart]
-                nextTargetBtn.Text = "Next Target: " .. chosen.Name
-            else
-                aimOverridePart = nil; nextTargetBtn.Text = "Next Target (invalid)"
-            end
-        end
-    else
-        aimOverridePart = nil
-    end
-end)
-
-nextTargetBtn.MouseButton1Click:Connect(function()
-    buildNearestCycleList()
-    if #cycleList == 0 then
-        cycleIndex = 0; aimOverridePart = nil; nextTargetBtn.Text = "Next Target (none)"; return
-    end
-    cycleIndex = cycleIndex + 1
-    if cycleIndex > #cycleList or cycleIndex == 0 then cycleIndex = 1 end
-    local chosen = cycleList[cycleIndex].player
-    if chosen and chosen.Character and chosen.Character:FindFirstChild(aimPart) then
-        aimOverridePart = chosen.Character[aimPart]
-        nextTargetBtn.Text = "Next Target: " .. chosen.Name
-    else
-        aimOverridePart = nil; nextTargetBtn.Text = "Next Target (invalid)"
-    end
-end)
-
+-- TARGETING ENGINE
 local function canSeeTarget(part)
     if not wallCheck then return true end
     local origin = camera.CFrame.Position
@@ -287,54 +162,18 @@ local function canSeeTarget(part)
     rayParams.FilterDescendantsInstances = {player.Character}
     rayParams.FilterType = Enum.RaycastFilterType.Blacklist
     local result = Workspace:Raycast(origin, direction.Unit * direction.Magnitude, rayParams)
-    if result and result.Instance and not part:IsDescendantOf(result.Instance.Parent) then return false end
-    return true
+    return (result and result.Instance and part:IsDescendantOf(result.Instance.Parent)) or not result
 end
 
-local function isTeammate(target)
-    if not teamCheck then return false end
-    if player.Team and target.Team and player.Team == target.Team then return true end
-    return false
-end
-
-local function getTarget()
-    local myChar = player.Character; if not myChar then return nil end
-    local myHum = myChar:FindFirstChild("Humanoid"); if not myHum or myHum.Health <= 0 then return nil end
-    local closest, shortestDist = nil, math.huge
-    local center2d = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y/2)
+local function acquireTargetPart()
+    if cycleMode and aimOverridePart and aimOverridePart.Parent then return aimOverridePart end
+    local closest, shortest = nil, math.huge
+    local myPos = camera.CFrame.Position
     for _, target in pairs(Players:GetPlayers()) do
         if target ~= player and target.Character and target.Character:FindFirstChild(aimPart) then
             local part = target.Character[aimPart]
             local hum = target.Character:FindFirstChild("Humanoid")
-            if hum and hum.Health > 0 then
-                if isTeammate(target) then continue end
-                if not canSeeTarget(part) then continue end
-                local screenPos, onScreen = camera:WorldToViewportPoint(part.Position)
-                if not onScreen then continue end
-                local distFromCenter = (Vector2.new(screenPos.X, screenPos.Y) - center2d).Magnitude
-                if distFromCenter < shortestDist then shortestDist = distFromCenter; closest = part end
-            end
-        end
-    end
-    return closest
-end
-
-local function aimAt(targetPart)
-    if targetPart and pcall(function() return targetPart.Position end) then
-        camera.CFrame = CFrame.new(camera.CFrame.Position, targetPart.Position)
-    end
-end
-
-local function acquireTargetPart()
-    if cycleMode and aimOverridePart and aimOverridePart.Parent and aimOverridePart.Parent:FindFirstChild("Humanoid") then return aimOverridePart end
-    if lockToCenter then return getTarget() end
-    local myPos = camera.CFrame.Position
-    local closest, shortest = nil, math.huge
-    for _, target in pairs(Players:GetPlayers()) do
-        if target ~= player and target.Character and target.Character:FindFirstChild(aimPart) then
-            local part = target.Character[aimPart]
-            local humT = target.Character:FindFirstChild("Humanoid")
-            if humT and humT.Health > 0 and not isTeammate(target) and canSeeTarget(part) then
+            if hum and hum.Health > 0 and (not teamCheck or target.Team ~= player.Team) and canSeeTarget(part) then
                 local dist = (part.Position - myPos).Magnitude
                 if dist < shortest then shortest = dist; closest = part end
             end
@@ -343,141 +182,60 @@ local function acquireTargetPart()
     return closest
 end
 
--- ESP
-local espFolder = Instance.new("Folder")
-espFolder.Name = "ESPFolder"
-espFolder.Parent = screenGui
+-- TELEPORT ACTION
+local function attemptTeleport(btn)
+    local target = acquireTargetPart()
+    local myHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if myHRP and target and target.Parent:FindFirstChild("HumanoidRootPart") then
+        local tHRP = target.Parent.HumanoidRootPart
+        if (tHRP.Position - myHRP.Position).Magnitude <= TELEPORT_THRESHOLD then
+            myHRP.CFrame = tHRP.CFrame * CFrame.new(0, 0, 3)
+            btn.Text = "SUCCESS"
+        else btn.Text = "TOO FAR" end
+    else btn.Text = "NO TARGET" end
+    task.delay(1, function() btn.Text = "Teleport (<=30)" end)
+end
 
+teleportTopRightBtn.MouseButton1Click:Connect(function() attemptTeleport(teleportTopRightBtn) end)
+teleportBehindBtn.MouseButton1Click:Connect(function() attemptTeleport(teleportBehindBtn) end)
+
+-- ESP & UPDATE LOOP
+local espFolder = Instance.new("Folder", screenGui)
 local espBoxes = {}
 
-local function createESP(playerTarget)
-    if not playerTarget.Character then return nil end
-    local char = playerTarget.Character
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "ESP_Highlight_" .. playerTarget.Name
-    highlight.FillTransparency = 0.7
-    highlight.OutlineTransparency = 0
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Adornee = char
-    highlight.Parent = espFolder
-    return { highlight = highlight }
-end
-
-local function updateESP()
-    local myChar = player.Character
-    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player then
-            if not espBoxes[plr] and espEnabled then
-                local rec = createESP(plr)
-                if rec then espBoxes[plr] = rec end
-            end
-        end
-    end
-    for plr, rec in pairs(espBoxes) do
-        local char = plr and plr.Character
-        local hum = char and char:FindFirstChild("Humanoid")
-        local alive = hum and hum.Health > 0
-        local hrp = alive and char:FindFirstChild("HumanoidRootPart") or nil
-        if not espEnabled or not alive or not hrp then
-            if rec.highlight then rec.highlight:Destroy() end
-            espBoxes[plr] = nil
-        else
-            if rec.highlight.Adornee ~= char then rec.highlight.Adornee = char end
-            local color = Color3.new(1, 0, 0)
-            if myHRP then
-                local dist = (hrp.Position - myHRP.Position).Magnitude
-                if dist <= ESP_GREEN_THRESHOLD then color = Color3.new(0, 1, 0) end
-            end
-            rec.highlight.OutlineColor = color
-            rec.highlight.FillColor = color
-        end
-    end
-end
-
--- Teleport Logic
-local function attemptTeleportBehind(buttonToUpdate)
-    local myChar = player.Character
-    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if not myHRP then
-        if buttonToUpdate then buttonToUpdate.Text = "No Local HRP" end
-        task.delay(1.2, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
-        return
-    end
-    local targetPart = acquireTargetPart()
-    if not targetPart or not targetPart.Parent then
-        if buttonToUpdate then buttonToUpdate.Text = "No Target" end
-        task.delay(1.2, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
-        return
-    end
-    local targetHRP = targetPart.Parent:FindFirstChild("HumanoidRootPart")
-    if not targetHRP then
-        if buttonToUpdate then buttonToUpdate.Text = "Target HRP Missing" end
-        task.delay(1.2, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
-        return
-    end
-    local dist = (targetHRP.Position - myHRP.Position).Magnitude
-    if dist <= TELEPORT_THRESHOLD then
-        local backOffset = 3.0
-        local newPos = targetHRP.Position - targetHRP.CFrame.LookVector * backOffset + Vector3.new(0, 0.5, 0)
-        myHRP.CFrame = CFrame.new(newPos, targetHRP.Position)
-        if buttonToUpdate then buttonToUpdate.Text = "Teleported!" end
-    else
-        if buttonToUpdate then buttonToUpdate.Text = "Too Far (>30)" end
-    end
-    task.delay(1.0, function() if buttonToUpdate then buttonToUpdate.Text = "Teleport (<=30)" end end)
-end
-
-teleportBehindBtn.MouseButton1Click:Connect(function() attemptTeleportBehind(teleportBehindBtn) end)
-teleportTopRightBtn.MouseButton1Click:Connect(function() attemptTeleportBehind(teleportTopRightBtn) end)
-
--- Optional line drawer
-local lineDrawer
-pcall(function()
-    lineDrawer = Drawing.new("Line")
-    lineDrawer.Color = Color3.new(1, 0, 0)
-    lineDrawer.Thickness = 2
-    lineDrawer.Transparency = 1
-    lineDrawer.Visible = false
-end)
-
--- Main loop
 RunService.RenderStepped:Connect(function()
-    if espEnabled then updateESP() else
-        for _, rec in pairs(espBoxes) do if rec.highlight then rec.highlight:Destroy() end end
+    -- ESP Logic
+    if espEnabled then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local highlight = espBoxes[plr] or Instance.new("Highlight", espFolder)
+                highlight.Adornee = plr.Character
+                local dist = (plr.Character.HumanoidRootPart.Position - (player.Character and player.Character.PrimaryPart and player.Character.PrimaryPart.Position or Vector3.new())).Magnitude
+                highlight.FillColor = (dist <= ESP_GREEN_THRESHOLD) and Color3.new(0,1,0) or Color3.new(1,0,0)
+                espBoxes[plr] = highlight
+            end
+        end
+    else
+        espFolder:ClearAllChildren()
         espBoxes = {}
     end
 
-    local targetPart = nil
+    -- Aim Logic
     if aiming then
-        targetPart = acquireTargetPart()
-        if targetPart then aimAt(targetPart) end
+        local t = acquireTargetPart()
+        if t then camera.CFrame = CFrame.new(camera.CFrame.Position, t.Position) end
     end
-
-    -- Teleport UI Color/Text Update
-    local myChar = player.Character
-    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    local activeTarget = acquireTargetPart()
-    if myHRP and activeTarget and activeTarget.Parent then
-        local targetHRP = activeTarget.Parent:FindFirstChild("HumanoidRootPart")
-        if targetHRP then
-            local dist = (targetHRP.Position - myHRP.Position).Magnitude
-            teleportBehindBtn.Text = string.format("Teleport Behind (%.1f/<=30)", dist)
-            teleportBehindBtn.BackgroundColor3 = (dist <= TELEPORT_THRESHOLD) and COLOR_ENABLED or COLOR_DISABLED
-            teleportTopRightBtn.Text = string.format("Teleport (%.1f/<=30)", dist)
-            teleportTopRightBtn.BackgroundColor3 = (dist <= TELEPORT_THRESHOLD) and COLOR_ENABLED or COLOR_DISABLED
-        end
+    
+    -- Teleport Color Update
+    local activeT = acquireTargetPart()
+    local myHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if myHRP and activeT and activeT.Parent:FindFirstChild("HumanoidRootPart") then
+        local dist = (activeT.Position - myHRP.Position).Magnitude
+        local color = (dist <= TELEPORT_THRESHOLD) and COLOR_ENABLED or COLOR_DISABLED
+        teleportTopRightBtn.BackgroundColor3 = color
+        teleportBehindBtn.BackgroundColor3 = color
     else
-        teleportBehindBtn.BackgroundColor3 = COLOR_NEUTRAL
         teleportTopRightBtn.BackgroundColor3 = COLOR_NEUTRAL
+        teleportBehindBtn.BackgroundColor3 = COLOR_NEUTRAL
     end
-
-    if lineDrawer and drawLines and aiming and targetPart then
-        local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-        if onScreen then
-            lineDrawer.From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y)
-            lineDrawer.To = Vector2.new(screenPos.X, screenPos.Y)
-            lineDrawer.Visible = true
-        else lineDrawer.Visible = false end
-    elseif lineDrawer then lineDrawer.Visible = false end
 end)
