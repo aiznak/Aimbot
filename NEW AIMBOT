@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 
 --// Variables
 local player = Players.LocalPlayer
@@ -34,19 +35,22 @@ local COLOR_NEUTRAL = Color3.fromRGB(60, 60, 60)
 
 --// UI Setup
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AimbotUI"
+screenGui.Name = "AimbotUI_Extreme"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.Enabled = true
-screenGui.DisplayOrder = 100 -- FORCED TO TOP OF ALL OTHER GUIS
-screenGui.Parent = player:WaitForChild("PlayerGui")
+screenGui.DisplayOrder = 2147483647 -- MAX PRIORITY
+
+-- Parent to CoreGui to bypass game-defined UI layers
+local pCallSuccess, _ = pcall(function() screenGui.Parent = CoreGui end)
+if not pCallSuccess then screenGui.Parent = player:WaitForChild("PlayerGui") end
 
 local gearButton = Instance.new("ImageButton")
 gearButton.Size = UDim2.new(0, 40, 0, 40)
 gearButton.Position = UDim2.new(0.5, -20, 0.05, 0)
 gearButton.BackgroundTransparency = 1
 gearButton.Image = "rbxassetid://6031091006"
-gearButton.ZIndex = 10
+gearButton.ZIndex = 100
 gearButton.Parent = screenGui
 
 local menuFrame = Instance.new("Frame")
@@ -56,7 +60,7 @@ menuFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 menuFrame.BorderSizePixel = 0
 menuFrame.Visible = false
 menuFrame.ClipsDescendants = true
-menuFrame.ZIndex = 5
+menuFrame.ZIndex = 50
 menuFrame.Parent = screenGui
 
 local uiList = Instance.new("UIListLayout")
@@ -124,7 +128,7 @@ teleportTopRightBtn.Font = Enum.Font.SourceSansBold
 teleportTopRightBtn.TextSize = 20
 teleportTopRightBtn.Text = "Teleport (<=30)"
 teleportTopRightBtn.AutoButtonColor = true
-teleportTopRightBtn.ZIndex = 999 -- MAX PRIORITY
+teleportTopRightBtn.ZIndex = 2147483647 -- MAXIMUM ZINDEX
 teleportTopRightBtn.Parent = screenGui
 teleportTopRightBtn.Active = true
 
