@@ -9,29 +9,32 @@ local CoreGui = game:GetService("CoreGui")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 local aiming = false
+local espEnabled = false 
 local teamCheck = false
 local wallCheck = false
 local aimPart = "Head"
 
 local TELEPORT_THRESHOLD  = 30      
-local COLOR_ACCENT = Color3.fromRGB(0, 255, 170) -- Neon Mint Green
-local COLOR_TEXT_OFF = Color3.fromRGB(200, 200, 200) 
-local COLOR_MAIN = Color3.fromRGB(25, 25, 25) 
-local COLOR_STROKE = Color3.fromRGB(60, 60, 60)
+local ESP_GREEN_THRESHOLD = 8   
+
+local COLOR_GREEN         = Color3.fromRGB(0, 255, 0)
+local COLOR_RED           = Color3.fromRGB(255, 0, 0)
+local COLOR_TEXT_OFF      = Color3.fromRGB(200, 200, 200) 
+local COLOR_MAIN          = Color3.fromRGB(25, 25, 25) 
+local COLOR_STROKE        = Color3.fromRGB(60, 60, 60)
 
 --// UI Setup
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "Gemini_Premium_Lowered_15"
+screenGui.Name = "Gemini_CenterTarget_v3"
 screenGui.ResetOnSpawn = false
 screenGui.IgnoreGuiInset = true
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-if pcall(function() screenGui.Parent = CoreGui end) then
-else
+if pcall(function() screenGui.Parent = CoreGui end) then else
     screenGui.Parent = player:WaitForChild("PlayerGui")
 end
 
---// Styling Functions
+--// UI Helpers
 local function addCorner(obj, radius)
     local c = Instance.new("UICorner")
     c.CornerRadius = UDim.new(0, radius or 6)
@@ -68,54 +71,41 @@ local function makeDraggable(obj)
     end)
 end
 
---// 1. The Movable Menu Button
+--// 1. Movable MENU Button
 local toggleBtn = Instance.new("TextButton")
-toggleBtn.Name = "MenuToggle"
 toggleBtn.Size = UDim2.new(0, 50, 0, 50)
 toggleBtn.Position = UDim2.new(0.5, -25, 0.1, 0)
 toggleBtn.BackgroundColor3 = COLOR_MAIN
 toggleBtn.Text = "MENU"
-toggleBtn.TextColor3 = COLOR_ACCENT
+toggleBtn.TextColor3 = Color3.new(1,1,1)
 toggleBtn.Font = Enum.Font.GothamBlack
 toggleBtn.TextSize = 12
-toggleBtn.AutoButtonColor = true
 toggleBtn.Parent = screenGui
 addCorner(toggleBtn, 25) 
-addStroke(toggleBtn, COLOR_ACCENT, 2)
+addStroke(toggleBtn, Color3.new(1,1,1), 2)
 makeDraggable(toggleBtn) 
 
---// 2. The Main Menu
+--// 2. Main Menu
 local menuFrame = Instance.new("Frame")
-menuFrame.Size = UDim2.new(0, 240, 0, 320)
-menuFrame.Position = UDim2.new(0.5, -120, 0.5, -160)
+menuFrame.Size = UDim2.new(0, 240, 0, 360)
+menuFrame.Position = UDim2.new(0.5, -120, 0.5, -180)
 menuFrame.BackgroundColor3 = COLOR_MAIN
-menuFrame.BorderSizePixel = 0
 menuFrame.Visible = false
 menuFrame.Parent = screenGui
 addCorner(menuFrame, 12)
 addStroke(menuFrame, COLOR_STROKE, 2)
 makeDraggable(menuFrame)
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 40)
-title.BackgroundTransparency = 1
-title.Text = "CONTROLS"
-title.TextColor3 = Color3.new(1,1,1)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 14
-title.Parent = menuFrame
-
 local layout = Instance.new("UIListLayout")
 layout.Parent = menuFrame
 layout.Padding = UDim.new(0, 8)
 layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-layout.SortOrder = Enum.SortOrder.LayoutOrder
 
 local pad = Instance.new("UIPadding")
-pad.PaddingTop = UDim.new(0, 40)
+pad.PaddingTop = UDim.new(0, 45)
 pad.Parent = menuFrame
 
-local function createOption(text, order, callback)
+local function createOption(text, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 200, 0, 38)
     btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
@@ -123,43 +113,44 @@ local function createOption(text, order, callback)
     btn.TextColor3 = COLOR_TEXT_OFF
     btn.Font = Enum.Font.GothamSemibold
     btn.TextSize = 14
-    btn.LayoutOrder = order
-    btn.AutoButtonColor = true
     btn.Parent = menuFrame
     addCorner(btn, 6)
-    
     btn.MouseButton1Click:Connect(function() callback(btn) end)
     return btn
 end
 
-createOption("Auto Aim: OFF", 1, function(self)
+createOption("Auto Aim: OFF", function(self)
     aiming = not aiming
     self.Text = "Auto Aim: " .. (aiming and "ON" or "OFF")
-    self.TextColor3 = aiming and COLOR_ACCENT or COLOR_TEXT_OFF
+    self.TextColor3 = aiming and COLOR_GREEN or COLOR_TEXT_OFF
 end)
 
-createOption("Aim Part: Head", 2, function(self)
+createOption("ESP: OFF", function(self)
+    espEnabled = not espEnabled
+    self.Text = "ESP: " .. (espEnabled and "ON" or "OFF")
+    self.TextColor3 = espEnabled and COLOR_GREEN or COLOR_TEXT_OFF
+end)
+
+createOption("Aim Part: Head", function(self)
     aimPart = (aimPart == "Head") and "HumanoidRootPart" or "Head"
     self.Text = "Aim Part: " .. aimPart
 end)
 
-createOption("Team Check: OFF", 3, function(self)
+createOption("Team Check: OFF", function(self)
     teamCheck = not teamCheck
     self.Text = "Team Check: " .. (teamCheck and "ON" or "OFF")
-    self.TextColor3 = teamCheck and COLOR_ACCENT or COLOR_TEXT_OFF
+    self.TextColor3 = teamCheck and COLOR_GREEN or COLOR_TEXT_OFF
 end)
 
-createOption("Wall Check: OFF", 4, function(self)
+createOption("Wall Check: OFF", function(self)
     wallCheck = not wallCheck
     self.Text = "Wall Check: " .. (wallCheck and "ON" or "OFF")
-    self.TextColor3 = wallCheck and COLOR_ACCENT or COLOR_TEXT_OFF
+    self.TextColor3 = wallCheck and COLOR_GREEN or COLOR_TEXT_OFF
 end)
 
---// 3. The Teleport Button (MOVED DOWN TO 15%)
+--// 3. Teleport Button (15% Placement)
 local tpContainer = Instance.new("Frame")
-tpContainer.Name = "TeleportWidget"
 tpContainer.Size = UDim2.new(0, 210, 0, 48) 
--- SET TO 15% (0.15 Scale)
 tpContainer.Position = UDim2.new(1, -230, 0.15, 0) 
 tpContainer.BackgroundColor3 = COLOR_MAIN
 tpContainer.Parent = screenGui
@@ -169,67 +160,94 @@ addStroke(tpContainer, COLOR_STROKE, 2)
 local tpBtn = Instance.new("TextButton")
 tpBtn.Size = UDim2.new(1, 0, 1, 0)
 tpBtn.BackgroundTransparency = 1
-tpBtn.Text = "SEARCHING..."
+tpBtn.Text = "CENTER TARGET"
 tpBtn.TextColor3 = COLOR_TEXT_OFF
 tpBtn.Font = Enum.Font.GothamBold
 tpBtn.TextSize = 15 
 tpBtn.Parent = tpContainer
 
---// Logic
-local function getClosestTarget()
-    local closest, dist = nil, math.huge
+--// Logic: Get person closest to center of screen
+local function getCenterTarget()
+    local closestPlr, shortestDist = nil, math.huge
+    local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character and plr.Character:FindFirstChild(aimPart) then
             if teamCheck and plr.Team == player.Team then continue end
-            local pos = plr.Character[aimPart].Position
-            local d = (pos - camera.CFrame.Position).Magnitude
-            if d < dist then
-                dist = d
-                closest = plr.Character[aimPart]
+            
+            local targetPart = plr.Character[aimPart]
+            local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+            
+            if onScreen then
+                local distToCenter = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                if distToCenter < shortestDist then
+                    shortestDist = distToCenter
+                    closestPlr = targetPart
+                end
             end
         end
     end
-    return closest
+    return closestPlr
 end
 
-toggleBtn.MouseButton1Click:Connect(function()
-    menuFrame.Visible = not menuFrame.Visible
-end)
+toggleBtn.MouseButton1Click:Connect(function() menuFrame.Visible = not menuFrame.Visible end)
 
 tpBtn.MouseButton1Click:Connect(function()
-    local t = getClosestTarget()
-    local myHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if t and myHRP then
+    local t = getCenterTarget()
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if t and hrp then
         local tHRP = t.Parent:FindFirstChild("HumanoidRootPart")
-        if tHRP and (tHRP.Position - myHRP.Position).Magnitude <= TELEPORT_THRESHOLD then
-            myHRP.CFrame = tHRP.CFrame * CFrame.new(0, 0, 3.5)
+        if (tHRP.Position - hrp.Position).Magnitude <= TELEPORT_THRESHOLD then
+            hrp.CFrame = tHRP.CFrame * CFrame.new(0, 0, 3.5)
         end
     end
 end)
 
+-- Render Loop
+local espFolder = Instance.new("Folder", screenGui)
 RunService.RenderStepped:Connect(function()
-    local target = getClosestTarget()
+    local target = getCenterTarget()
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     
+    -- Aiming (Only if Target is on Screen)
     if aiming and target then
         camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position)
     end
     
-    local myHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if myHRP and target then
-        local d = (target.Position - myHRP.Position).Magnitude
-        local canTP = d <= TELEPORT_THRESHOLD
+    espFolder:ClearAllChildren()
+    
+    -- ESP & TP Logic
+    if espEnabled then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player and plr.Character then
+                if teamCheck and plr.Team == player.Team then continue end
+                
+                local charPart = plr.Character:FindFirstChild(aimPart)
+                local worldDist = charPart and hrp and (charPart.Position - hrp.Position).Magnitude or 999
+                
+                local h = Instance.new("Highlight", espFolder)
+                h.Adornee = plr.Character
+                h.FillColor = (worldDist <= ESP_GREEN_THRESHOLD) and COLOR_GREEN or COLOR_RED
+                h.OutlineColor = Color3.new(1,1,1)
+                h.FillTransparency = 0.5
+            end
+        end
+    end
+    
+    -- Update TP Button for the person you are LOOKING AT
+    if hrp and target then
+        local d = (target.Position - hrp.Position).Magnitude
+        tpBtn.Text = string.format("TP CENTER [%.1f]", d)
         
-        tpBtn.Text = string.format("TELEPORT [%.1f]", d)
-        
-        if canTP then
+        if d <= TELEPORT_THRESHOLD then
             tpBtn.TextColor3 = COLOR_MAIN
-            tpContainer.BackgroundColor3 = COLOR_ACCENT
+            tpContainer.BackgroundColor3 = COLOR_GREEN
         else
-            tpBtn.TextColor3 = COLOR_ACCENT
+            tpBtn.TextColor3 = COLOR_TEXT_OFF
             tpContainer.BackgroundColor3 = COLOR_MAIN
         end
     else
-        tpBtn.Text = "NO TARGET"
+        tpBtn.Text = "LOOK AT TARGET"
         tpBtn.TextColor3 = Color3.fromRGB(100, 100, 100)
         tpContainer.BackgroundColor3 = COLOR_MAIN
     end
