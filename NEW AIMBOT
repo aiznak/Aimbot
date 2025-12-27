@@ -166,38 +166,77 @@ tpBtn.Font = Enum.Font.GothamBold
 tpBtn.TextSize = 15 
 tpBtn.Parent = tpContainer
 
+--// Logic: Raycast wall check
+local function canSeeTarget(part)
+    if not wallCheck or not part then return true end
+    local origin = camera.CFrame.Position
+    local direction = (part.Position - origin)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    params.FilterDescendantsInstances = {player.Character, part.Parent}
+    local result = Workspace:Raycast(origin, direction.Unit * direction.Magnitude, params)
+    return result == nil
+end
+
 --// Logic: Get person closest to center of screen
 local function getCenterTarget()
-    local closestPlr, shortestDist = nil, math.huge
+    local closestPart, shortestDist = nil, math.huge
     local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
 
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character and plr.Character:FindFirstChild(aimPart) then
             if teamCheck and plr.Team == player.Team then continue end
-            
             local targetPart = plr.Character[aimPart]
             local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-            
-            if onScreen then
+            if onScreen and canSeeTarget(targetPart) then
                 local distToCenter = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
                 if distToCenter < shortestDist then
                     shortestDist = distToCenter
-                    closestPlr = targetPart
+                    closestPart = targetPart
                 end
             end
         end
     end
-    return closestPlr
+    return closestPart
 end
 
+--// NEW: Get nearest person by world distance (with wall check if enabled)
+local function getNearestTarget()
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    local closestPart, minDist = nil, math.huge
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player and plr.Character then
+            local hum = plr.Character:FindFirstChild("Humanoid")
+            local targetPart = plr.Character:FindFirstChild(aimPart)
+            if hum and hum.Health > 0 and targetPart then
+                if teamCheck and plr.Team == player.Team then
+                    -- skip teammate
+                else
+                    if canSeeTarget(targetPart) then
+                        local dist = (targetPart.Position - hrp.Position).Magnitude
+                        if dist < minDist then
+                            minDist = dist
+                            closestPart = targetPart
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closestPart
+end
+
+-- UI Toggle
 toggleBtn.MouseButton1Click:Connect(function() menuFrame.Visible = not menuFrame.Visible end)
 
+-- Teleport (to back/center based on center target)
 tpBtn.MouseButton1Click:Connect(function()
     local t = getCenterTarget()
     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if t and hrp then
         local tHRP = t.Parent:FindFirstChild("HumanoidRootPart")
-        if (tHRP.Position - hrp.Position).Magnitude <= TELEPORT_THRESHOLD then
+        if tHRP and (tHRP.Position - hrp.Position).Magnitude <= TELEPORT_THRESHOLD then
             hrp.CFrame = tHRP.CFrame * CFrame.new(0, 0, 3.5)
         end
     end
@@ -206,25 +245,23 @@ end)
 -- Render Loop
 local espFolder = Instance.new("Folder", screenGui)
 RunService.RenderStepped:Connect(function()
-    local target = getCenterTarget()
     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    
-    -- Aiming (Only if Target is on Screen)
-    if aiming and target then
-        camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position)
+
+    -- Aim lock: nearest person (world distance)
+    local nearestTarget = getNearestTarget()
+    if aiming and nearestTarget then
+        camera.CFrame = CFrame.new(camera.CFrame.Position, nearestTarget.Position)
     end
-    
+
+    -- ESP rendering
     espFolder:ClearAllChildren()
-    
-    -- ESP & TP Logic
     if espEnabled then
         for _, plr in pairs(Players:GetPlayers()) do
             if plr ~= player and plr.Character then
                 if teamCheck and plr.Team == player.Team then continue end
-                
                 local charPart = plr.Character:FindFirstChild(aimPart)
-                local worldDist = charPart and hrp and (charPart.Position - hrp.Position).Magnitude or 999
-                
+                local targetHRP = plr.Character:FindFirstChild("HumanoidRootPart")
+                local worldDist = (charPart and hrp) and (charPart.Position - hrp.Position).Magnitude or 999
                 local h = Instance.new("Highlight", espFolder)
                 h.Adornee = plr.Character
                 h.FillColor = (worldDist <= ESP_GREEN_THRESHOLD) and COLOR_GREEN or COLOR_RED
@@ -233,12 +270,12 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
-    
-    -- Update TP Button for the person you are LOOKING AT
-    if hrp and target then
-        local d = (target.Position - hrp.Position).Magnitude
+
+    -- Update TP button for the center target you are looking at
+    local centerTarget = getCenterTarget()
+    if hrp and centerTarget then
+        local d = (centerTarget.Position - hrp.Position).Magnitude
         tpBtn.Text = string.format("TP CENTER [%.1f]", d)
-        
         if d <= TELEPORT_THRESHOLD then
             tpBtn.TextColor3 = COLOR_MAIN
             tpContainer.BackgroundColor3 = COLOR_GREEN
